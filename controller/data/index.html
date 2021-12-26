@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control</title>
+  <style>
+    #nod {
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <input id="nod" type="range" min="0" max="800" step="1" value="0"/>
+  <script>
+ws = new WebSocket('ws://10.0.1.11/ws')
+
+function setPos(nod, shake, jaw) {
+  let buf = new ArrayBuffer(7)
+  let dv = new DataView(buf)
+  dv.setUint8(0, 54)
+  dv.setUint16(1, nod, true)
+  dv.setUint16(3, shake, true)
+  dv.setUint16(5, jaw, true)
+  ws.send(buf)
+}
+
+ws.addEventListener('open', () => {
+  console.log('connected')
+})
+
+ws.addEventListener('close', () => {
+  console.log('closed')
+})
+
+document.getElementById('nod').addEventListener('input', (e)=>setPos(parseInt(e.target.value), 0, 0))
+// let lastValue = 0
+// setTimeout(()=>setInterval(()=>{
+//   let nod = document.getElementById('nod')
+//   if (nod.value != lastValue) {
+    setPos(parseInt(nod.value), 0, 0)
+//   }
+//   lastValue = nod.value
+// }, 200), 1000)
+</script>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Configure WIFI</title>
+    <style>
+        html, body {
+            overflow: hidden;
+            height: 100%;            
+        }
+
+        body {
+            background-color: black;
+            flex-direction: column;
+            display: flex;
+            margin: 0 15vw;
+            background: linear-gradient(#000 2%, #000 50%, #5b2be4);;
+            color: #ddd;
+            font-weight: bold;
+            font-size: 3vh;
+            font-family:'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+        }
+
+        h1 {
+          font-size: 5vh;
+        }
+
+        #header {
+            margin: 3vh 0 2vh;
+            flex-direction: row;
+            display: flex;
+            color: #ddd;
+            align-self: center;
+            font-weight: bold;
+            font-family:'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+        }
+
+        #form {
+          margin: 0;
+        }
+
+        .field {
+          margin-bottom: 10vw;
+          display: flex;
+          align-items: center;
+        }
+        
+        .label {
+          flex: 1;
+          display: flex;
+          justify-content: flex-start;
+        }
+
+        input {
+          flex: 4;
+          color: #000;
+          height: 4vh;
+          align-self: right;
+          font-weight: bold;
+          font-size: 3vh;
+          padding: 0 1vw;
+          font-family:'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+        }
+
+        #actions {
+          display: flex;
+          align-self: center;
+        }
+
+        #actions button {
+          background-color: white;
+          color: black;
+          border: none;
+          height: 6vh;
+          border-radius: 2vw;
+          font-weight: bold;
+          font-size: 3vh;
+          padding: 0 2vw;
+          font-family:'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+          margin: 0 auto;
+          width: 42vw;
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+      <H1>CONFIGURE WIFI</H1>
+    </div>
+    <div id="form">
+      <div class="field">
+        <span class="label">SSID:</span>
+        <input name="ssid" id="ssid"></input>
+      </div>
+      <div class="field">
+        <span class="label">PSK:</span>
+        <input name="psk" id="psk"></input>
+      </div>
+      <div class="field">
+        <span class="label">HOSTNAME:</span>
+        <input name="hostname" id="hostname"></input>
+      </div>
+    </div>
+    <dif id="actions">
+      <button>SEND</button>
+    </dif>
+  </body>
+  <script>
+    function sendNow() {
+      let req = new XMLHttpRequest();
+      req.open("POST", '/update_wifi_config', true);
+      req.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+      req.onload = () => document.getElementById('actions').innerHTML = 'config changed'
+      req.onerror = (e) => {console.log(e); document.getElementById('actions').innerHTML = 'error'}
+
+      const params = ['ssid','psk','hostname'].map((k)=>k+'='+encodeURIComponent(document.getElementById(k).value)).join('&')
+      req.send(params)
+    }
+
+    document.querySelector('#actions button').addEventListener("click", sendNow)
+</script>
+</html>

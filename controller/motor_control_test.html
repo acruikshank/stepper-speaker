@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  Open console!
+</body>
+<script>
+
+const ws = new WebSocket("ws://1.2.3.4/ws");
+ws.onopen = ()=>console.log("Web socket connected!")
+ws.onclose = ()=>console.log("Web socket disconnected!")
+ws.onmessage = (e)=>console.log("Message:", e)
+
+const moveTo = (x) => {
+  const ctrlChange = new ArrayBuffer(3);
+  const dv = new DataView(ctrlChange)
+  dv.setInt8(0,54);
+  dv.setUint16(1, x, true);
+
+  ws.send(ctrlChange);
+}
+
+</script>
+</html>
