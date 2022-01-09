@@ -6,11 +6,14 @@
 
 // constructor
 SONG::SONG() {
+  looping = false;
 }
 
-void SONG::init(MOTOR *_motor) {
+void SONG::init(MOTOR *_motor, LIGHT *_light) {
   motor = _motor;
+  light = _light;
   songTaskInitialized = false;
+  readSong();
 }
 
 // public methods
@@ -26,12 +29,14 @@ bool SONG::writeSong() {
   f.write((uint8_t *) notes, sizeof(Note) * noteCount);
   f.close();
   Serial.println("wrote song");
+
+  if (noteCount > 0) loaded = true;
+
   return true;
 }
 
 bool SONG::readSong() {
   Serial.println("readSong");
-  motor->debug();
 
   if (!LITTLEFS.exists(SONG_FILE)) {
     Serial.printf("Song file not found: %s\n", SONG_FILE);
@@ -46,7 +51,6 @@ bool SONG::readSong() {
   }
 
   Serial.println("readSong file opened");
-  motor->debug();
 
   noteCount = 0;
   Note nextNote;
@@ -58,7 +62,8 @@ bool SONG::readSong() {
   f.close();
 
   Serial.printf("readSong: notes read %d\n", noteCount);
-  motor->debug();
+
+  loaded = noteCount > 0;
 
   return true;
 }
@@ -66,17 +71,28 @@ bool SONG::readSong() {
 Note SONG::nextNote() {  
   noteIndex = (noteIndex + 1) % noteCount;
   Note note = notes[noteIndex];
+  light->setHSV(255.0*fmod(log2((double) note.period), 1.0), 255, 150);
   motor->setDirection(!motor->direction);
   motor->play(note.period);
   return note;
 }
 
+bool SONG::hasNextNote() {
+  return (looping || noteIndex + 1 < noteCount);  
+}
+
 void playSong(void *pvParameters) {
   SONG *song = (SONG *) pvParameters;
   while (true) {
+    if (!song->hasNextNote()) {
+      song->stop();
+      return;
+    }
+
     Note note = song->nextNote();
 
-    Serial.printf("%d: playing {%d, %d}\n", micros(), note.duration, note.period);
+    // Serial.printf("%d: playing {%d, %d}\n", micros(), note.duration, note.period);
+
     vTaskDelay(note.duration);
   }
 }
@@ -84,15 +100,33 @@ void playSong(void *pvParameters) {
 void SONG::start() {
   stop();
   noteIndex = -1;  // prepare first note (actually max uint16)
-  xTaskCreate(playSong, "SongTask", 5000, (void *) this, 1, &songTask);
   songTaskInitialized = true;
+  light->stop();
+  playing = true;
+  xTaskCreate(playSong, "SongTask", 5000, (void *) this, 1, &songTask);
 }
 
 void SONG::stop() {
+  playing = false;
+  Serial.println("song stopped");
+  motor->stop();
+  light->blink(light->currentColor);
   if (songTaskInitialized) {
-    vTaskDelete(songTask);
     songTaskInitialized = false;
+    vTaskDelete(songTask);
   }
+}
+
+SongStatus SONG::getStatus() {
+  return SongStatus{
+    songLoaded: loaded,
+    songPlaying: playing,
+    songLooping: looping,
+  };
+}
+
+void SONG::setLoop(bool loop) {
+  looping = loop;
 }
 
 void SONG::debugSong() {

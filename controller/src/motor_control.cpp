@@ -39,7 +39,7 @@ IRAM_ATTR void update() {
 // constructor
 MOTOR::MOTOR() {
   pinMode(ENABLE_PIN, OUTPUT);
-  digitalWrite(ENABLE_PIN, LOW);
+  digitalWrite(ENABLE_PIN, HIGH);
   pinMode(STEP_PIN, OUTPUT);
   pinMode(DIR_PIN, OUTPUT);
 }
@@ -54,12 +54,13 @@ void MOTOR::setDirection(uint8_t dir) {
 }
 
 void MOTOR::init() {
-  timer = timerBegin(2, 80, true);
+  timer = timerBegin(2  , 80, true);
   timerAttachInterrupt(timer, &update, true);
   timer_set = true;
 }
 
 void MOTOR::play(uint32_t period) {
+  digitalWrite(ENABLE_PIN, LOW);
   if (period) {
     timerAlarmWrite(timer, period, true);
    if (!timerAlarmEnabled(timer)) timerAlarmEnable(timer);
@@ -69,6 +70,7 @@ void MOTOR::play(uint32_t period) {
 }
 
 void MOTOR::stop() {
+  digitalWrite(ENABLE_PIN, HIGH);
   if (timerAlarmEnabled(timer))
     timerAlarmDisable(timer);
 }

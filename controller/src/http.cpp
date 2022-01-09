@@ -11,33 +11,44 @@ void notFound(AsyncWebServerRequest *request) {
     request->send(404, "text/plain", "Not found");
 }
 
-void HTTP::setupWebServer(LIGHT *l, updateWifiHandler updateWifi, songUpdatedHandler songUpdated) {
+void HTTP::setupWebServer(LIGHT *l, 
+    updateWifiHandler updateWifi, 
+    songLoading songLoading,
+    songUpdatedHandler songUpdated,
+    playNote playNote,
+    getSongStatus getSongStatus,
+    startSong startSong,
+    stopSong stopSong,
+    setLoop setLoop    
+) {
   light = l;
 
   server->on("/", HTTP_GET, [](AsyncWebServerRequest *request) {    
     request->send(LITTLEFS, "/index.html", "text/html");
   });
 
-  server->on("/song", HTTP_GET, [](AsyncWebServerRequest *request) {
-    Serial.println("downloading upload.html");
-    request->send(LITTLEFS, "/upload.html", "text/html");
+  server->on("/midi.js", HTTP_GET, [](AsyncWebServerRequest *request) {    
+    request->send(LITTLEFS, "/midi.js", "text/javascript");
   });
 
+  server->on("/live", HTTP_GET, [](AsyncWebServerRequest *request) {    
+    request->send(LITTLEFS, "/live.html", "text/html");
+  });
 
   ///////////////////
-  //  SONG UPLOAD
+  //  SONG CONTROL
   ///////////////////
 
   server->on("/song/upload", HTTP_POST, [](AsyncWebServerRequest *request) {      
     request->send(200, "text/plain; charset=utf-8", "OK");
-  }, [this, songUpdated](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+  }, [this, songLoading, songUpdated](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
     if (!index) {
       Serial.println("start writing song");
+      songLoading();
       song_file = LITTLEFS.open("/SONG", "w");
     }
     Serial.printf("write %d bytes\n", len);
     for (size_t i = 0; i < len; i++) {
-      Serial.printf("%d\t", data[i]);
       song_file.write(data[i]);
     }
     if (final) {
@@ -48,6 +59,67 @@ void HTTP::setupWebServer(LIGHT *l, updateWifiHandler updateWifi, songUpdatedHan
       if (songUpdated) {
         songUpdated();
       }
+    }
+  });
+
+  server->on("/song/start", HTTP_POST, [startSong](AsyncWebServerRequest *request){
+    startSong();
+    request->send(200);
+  });
+
+  server->on("/song/stop", HTTP_POST, [stopSong](AsyncWebServerRequest *request){
+    stopSong();
+    request->send(200);
+  });
+
+  server->on("/song/loop", HTTP_POST, [setLoop](AsyncWebServerRequest *request){
+    if (request->hasParam("loop", true)) {
+      Serial.println("setting loop to true");
+      setLoop(true);
+    } else {
+      Serial.println("setting loop to false");
+      setLoop(false);
+    }
+    request->send(200);
+  });
+
+  server->on("/song/status", HTTP_GET, [getSongStatus](AsyncWebServerRequest *request){
+    SongStatus status = getSongStatus();
+    std::string buf("{\"loaded\":");
+    buf.append(status.songLoaded ? "true" : "false");
+    buf.append(",\"playing\":");
+    buf.append(status.songPlaying ? "true" : "false");
+    buf.append(",\"looping\":");
+    buf.append(status.songLooping ? "true" : "false");
+    buf.append("}");
+    request->send(200, "application/json", buf.c_str());
+  });
+
+  //////////////////////////
+  //       WS CONTROL
+  //////////////////////////
+
+  ws->onEvent([playNote](AsyncWebSocket *server, AsyncWebSocketClient *c, AwsEventType type, void *arg, uint8_t *data, size_t len) {
+    switch(type) {
+    case WS_EVT_CONNECT:
+      Serial.printf("ws[%s][%u] connect\n", server->url(), c->id());
+      break;
+    case WS_EVT_DISCONNECT:
+      Serial.printf("ws[%s][%u] disconnect\n", server->url(), c->id());
+      break;
+    case WS_EVT_PONG:
+      Serial.printf("ws[%s][%u] pong[%u]: %s\n", server->url(), c->id(), len, (len)?(char*)data:"");
+      break;
+    case WS_EVT_ERROR:
+      Serial.printf("ws[%s][%u] error(%u): %s\n", server->url(), c->id(), *((uint16_t*)arg), (char*)data);
+      break;
+    case WS_EVT_DATA:
+      // Serial.printf("ws[%s][%u] data[%d]: explen:%d id:%d\n", server->url(), c->id(), len, sizeof(ControlChange), data[0]);
+      if (len == sizeof(ControlChange)) {
+        playNote(((ControlChange*) data)->period);
+        c->text("");
+      }
+      break;
     }
   });
 
@@ -113,33 +185,6 @@ void HTTP::setupWebServer(LIGHT *l, updateWifiHandler updateWifi, songUpdatedHan
       request->send(500);
     }
   });
-
-  server->on("/update_song", HTTP_POST, 
-      [](AsyncWebServerRequest *request){}, NULL, 
-      [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-
-    // uint8_t buf[8];
-    // for (int i=0; i<8; i++)
-    //   buf[i] = data[i];
-
-    // ColorUpdate *u = (ColorUpdate *) &buf;
-    // Serial.printf("Update pattern[%d] to %x\n", u->position, u->color);
-
-    // state = u->color;
-
-    // if (u->position >= 0 && u->position < NUM_COLORS) {
-    //   pattern[u->position] = u->color;
-    // }
-
-    // for(int i = 0; i < NUM_LEDS; i++) {
-    //   leds[i] = CRGB(pattern[i%NUM_COLORS]);
-    // }
-
-    // FastLED.show();
-
-    request->send(200);
-  });
-
 
   server->addHandler(ws);
   server->onNotFound(notFound);

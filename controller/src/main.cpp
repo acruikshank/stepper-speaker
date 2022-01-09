@@ -10,11 +10,6 @@
 #include "ota.h"
 
 /** TODO
- * Motor controller uses interupt driven steps.
- * Define note (period, duration)
- * Use RTOS tasks to play an array of notes.
- * Write array of notes to file from http
- * Read note file and play on startup
  * Listen for config mode
  * Repeat song
  */
@@ -42,8 +37,39 @@ bool updateWifi(const char* ssid, const char* psk, const char* hostname) {
 
 void songUpdated() {
   song.readSong();
-  song.debugSong();
+}
+
+void songLoadingHandler() {
+  song.stop();
+  song.loaded = false;
+}
+
+void playNoteHandler(uint32_t period) {
+  if (period) {
+    light.stop();
+    light.setHSV(255.0*fmod(log2((double) period), 1.0), 255, 150);
+    motor.setDirection(!motor.direction);
+    motor.play(period);
+  } else {
+    light.blink(light.currentColor);
+    motor.stop();
+  }
+}
+
+SongStatus getSongStatusHandler() {
+  return song.getStatus();
+}
+
+void startSongHandler() {
   song.start();
+}
+
+void stopSongHandler() {
+  song.stop();
+}
+
+void setLoopHandler(bool loop) {
+  song.setLoop(loop);
 }
 
 void setup() {
@@ -79,10 +105,19 @@ void setup() {
 
   Serial.println("Start Web");
 
-  webserver.setupWebServer(&light, &updateWifi, &songUpdated);
+  webserver.setupWebServer(&light, 
+    &updateWifi, 
+    &songLoadingHandler,
+    &songUpdated,
+    &playNoteHandler, 
+    &getSongStatusHandler, 
+    &startSongHandler, 
+    &stopSongHandler, 
+    &setLoopHandler
+  );
 
   motor.init();
-  song.init(&motor);
+  song.init(&motor, &light);
 }
 
 void loop() {

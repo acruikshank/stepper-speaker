@@ -4,45 +4,200 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Control</title>
+  <title>Upload</title>
   <style>
-    #nod {
-      width: 100%;
+    html { height: 100% }
+    body {
+      background: #191919;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      height: 100%;
+      padding: 10vh 0;
+      gap: 10vh;
+      margin: 0;
+      box-sizing: border-box;
+      align-items: center;
+      align-content: stretch;
+      color: #ed41be;
+      font-family:'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+      font-size: 1em;
+    }
+    h1 {
+      font-size: 2.3em;
+      color: #ed41be;
+      font-weight: 400;
+      height: auto;
+      padding: 0;
+      margin: 0;
+      font-weight: 800;
+    }
+    button {
+      font-family:'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+      flex-grow: 20;
+      width: min(100%, 414px);
+      background: none;
+      border: 2px solid #ed41be;
+      border-radius: 11px;
+      color: #ed41be;
+      font-size: 2.3em;   
+      font-weight: 100;
+      transition:cubic-bezier(0.77, 0, 0.175, 1) .3s;
+      box-shadow: 0 0 0px 0px #eddc41;
+    }
+    button:disabled {
+      opacity: .25;
+    }
+    #controls {
+      display: flex;
+      flex-direction: row;
+      align-content: stretch;
+      flex-grow: 5;
+      width: min(100%, 414px);
+      gap: 5vh;
+    }
+    #controls button {
+      flex-grow: 1;      
+    }
+    #play-pause:disabled:before {
+      content:'...';
+    }
+    #play-pause::before {
+      content: '▶';
+    }
+    #play-pause.playing::before {
+      content: 'II';
+      font-weight: 800;
+    }
+    #loop {
+      height: 2em;
+    }
+    #loop::before {
+      content: '∞';
+      font-size: 2em;
+      line-height: 1em;
+    }
+    #loop.looping::before {
+      content: ' ⃠';
+      font-size: 1em;
+      line-height: 1em;
+    }
+    button:enabled:hover {
+      border-color: #eddc41;
+      color: #eddc41;
+      background: #222;
+      box-shadow: 0 0 80px 5px #eddc41;
+      cursor: pointer;
+    }
+    .hidden {
+      display: none;
     }
   </style>
 </head>
 <body>
-  <input id="nod" type="range" min="0" max="800" step="1" value="0"/>
-  <script>
-ws = new WebSocket('ws://10.0.1.11/ws')
+  <h1>stepper speaker</h1>
+  <div id="controls">
+    <button id="play-pause" disabled="true"></button>
+    <button id="loop"></button>
+  </div>
+  <button id="midi-note-button">upload midi file</button>
+  <button id="frequency-button">upload frequency csv</button>
+  <button id="play-live">play live</button>
+  <input type="file" id="midi-note-upload" class="hidden"/>
+  <input type="file" id="frequency-upload" class="hidden"/>
+</body>
+<script type="module">
+import midiParser from './midi.js';
 
-function setPos(nod, shake, jaw) {
-  let buf = new ArrayBuffer(7)
-  let dv = new DataView(buf)
-  dv.setUint8(0, 54)
-  dv.setUint16(1, nod, true)
-  dv.setUint16(3, shake, true)
-  dv.setUint16(5, jaw, true)
-  ws.send(buf)
+const el = (id) => document.getElementById(id);
+
+const parseCSV = (csv) => csv.trim().split('\n').map(r=>r.split(','))
+const midiNoteFreq = (num) => 440*Math.pow(2, (parseInt(num)-45)/12)
+const freqToPeriod = (freq) => Math.floor(1e6/freq)
+const parseMidiCSV = (csv) => sendSong(parseCSV(csv).map(r=>({duration:parseInt(r[0]), period: freqToPeriod(midiNoteFreq(r[1]))})));
+const parseFreqCSV = (csv) => sendSong(parseCSV(csv).map(r=>({duration: parseInt(r[0]), period: freqToPeriod(r[1])})));
+
+const parseMidiFile = async (file) => {
+  const parser = midiParser();
+  const reader = await file.stream().getReader()  
+  for (let { done, value } = await reader.read(); !done; { done, value } = await reader.read()) {
+    for (let i=0; i<value.length; i++) parser.parse(value[i]);
+  }
+  return sendSong(parser.result.notes.map(n=>({duration:n.ms, period: freqToPeriod(midiNoteFreq(n.key))})));
+};
+
+const serializeSong = (song) => {
+  const ab = new ArrayBuffer(song.length * 8);
+  const dv = new DataView(ab);
+  song.forEach((note,i) => {
+    dv.setUint32(8*i, note.duration, true);
+    dv.setUint32(8*i+4, note.period, true);
+  })
+
+  return ab;
 }
 
-ws.addEventListener('open', () => {
-  console.log('connected')
-})
+const sendSong = async (song) => {
+  console.log('sending', song);
+  const fd = new FormData();
+  const songData = new Blob([serializeSong(song)], {})
+  fd.append("data", songData, "song");
 
-ws.addEventListener('close', () => {
-  console.log('closed')
-})
+  await fetch("/song/upload", {
+    method: "POST",
+    body: fd,
+  })
+  el('frequency-upload').value="";
+  el('midi-note-upload').value="";
+  await update();
+}
 
-document.getElementById('nod').addEventListener('input', (e)=>setPos(parseInt(e.target.value), 0, 0))
-// let lastValue = 0
-// setTimeout(()=>setInterval(()=>{
-//   let nod = document.getElementById('nod')
-//   if (nod.value != lastValue) {
-    setPos(parseInt(nod.value), 0, 0)
-//   }
-//   lastValue = nod.value
-// }, 200), 1000)
+const postCommand = async (command) => {
+  return await fetch(`/song/${command}`, {
+    method: "POST",
+  }).then(update);
+}
+
+const getStatus = async () => {
+  return fetch("/song/status").then((res)=>res.json())
+}
+
+const loopSong = async (loop) => {
+  return fetch("/song/loop", {
+    method: "POST",
+    headers: {
+    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+    },
+    body: loop ? "loop=true" : ""
+  }).then(update)
+}
+
+const handleMidiFile = async () => {
+  const file = el('midi-note-upload').files[0];
+  if (!file) return;
+  el('play-pause').disabled = true;
+  await parseMidiFile(el('midi-note-upload').files[0]);
+  update();
+}
+
+const updateUI = (status) => {
+  el('play-pause').disabled = !status.loaded;
+  el('play-pause').classList[status.playing ? 'add' : 'remove']('playing');
+  el('loop').classList[status.looping ? 'add' : 'remove']('looping');
+}
+
+const update = () => getStatus().then(updateUI);
+
+el('midi-note-button').addEventListener("click", ()=>el('midi-note-upload').click(), false);
+el('midi-note-upload').addEventListener("change", handleMidiFile, false);
+el('frequency-button').addEventListener("click", ()=>el('frequency-upload').click(), false);
+el('frequency-upload').addEventListener("change", ()=>el('frequency-upload').files[0] && el('frequency-upload').files[0].text().then(parseFreqCSV), false);
+el('play-pause').addEventListener("click", ()=> postCommand(el('play-pause').classList.contains('playing') ? 'stop' : 'start'), false);
+el('loop').addEventListener("click", ()=> loopSong(!el('loop').classList.contains('looping')), false);
+el('play-live').addEventListener("click", ()=>window.location='/live', false);
+
+update();
+setInterval(update, 10000);
+
 </script>
-</body>
 </html>

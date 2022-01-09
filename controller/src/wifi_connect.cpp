@@ -11,6 +11,7 @@
 // constructor
 WIFI::WIFI(const char *configPath) {
   configFile = configPath;
+  WiFi.setSleep(false);
 }
 
 // public methods

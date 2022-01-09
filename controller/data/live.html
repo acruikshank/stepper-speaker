@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live</title>
+  <style>
+    body {
+      background: #191919;
+      font-family:'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+      font-size: 1em;
+      color: #ed41be;
+    }
+
+    #header {
+      display: flex;
+      width: 100%;
+      flex-direction: row;
+      justify-content: justfy;
+      padding: 0;
+      gap: 1vw;
+      margin: 0;
+      box-sizing: border-box;
+      align-items: top;
+      align-content: stretch;
+    }
+
+    h1 {
+      font-size: 1.8em;
+      flex-grow: 1;
+      color: #ed41be;
+      font-weight: 400;
+      padding: 0;
+      margin: auto 0;
+      font-weight: 800;
+      text-align: center;
+      box-sizing: border-box;
+    }
+
+    #header button {
+      margin: 1vw 0;
+      padding: .5em;
+      border-radius: .5vw;
+      flex-grow: 1;
+    }
+
+    .keys {
+      display: flex;
+      height: 75vh;
+      width: 100%;
+      flex-direction: row;
+      justify-content: justfy;
+      padding: 0;
+      gap: 1vw;
+      margin: 0;
+      box-sizing: border-box;
+      align-items: top;
+      align-content: stretch;
+    }
+
+    button {
+      box-sizing: content-box;
+      font-family:'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+      background: #191919;
+      border: 2px solid #ed41be;
+
+      color: #ed41be;
+      font-size: min(3vw, 2.3em);
+      font-weight: 100;
+      cursor: pointer;
+      transition:cubic-bezier(0.77, 0, 0.175, 1) .3s;
+      box-shadow: 0 0 0px 0px #eddc41;
+    }
+    .keys button {
+      border-radius: 0;
+      display: inline-flex;
+      justify-content: center; /* center the content horizontally */
+      align-items: flex-end; /* center the content vertically */
+      padding-bottom: 2vh;
+    }
+
+    button.white {
+      height:100%;
+      flex-grow: 5;
+    }
+
+    button.l {
+      margin-right: -6vw;
+    }
+
+    button.r {
+      margin-left: -6vw;
+    }
+
+    button.black {
+      height:50%;
+      flex-grow: 2;
+      z-index: 1;
+    }
+
+    button:hover {
+      border-color: #eddc41;
+      color: #eddc41;
+      background: #222;
+      /* box-shadow: 0 0 15px 3px #eddc41; */
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    #octave {
+      color: #eddc41;
+      font-weight: 600;
+      padding-left: .25em;
+    }
+    
+    .status {
+      flex-grow: 8;
+      color: #82b7ef;
+      display: table-cell;
+      text-align: center;
+      margin: auto 0;
+      font-size: 1.25em;
+      text-shadow: 0 0 12px #4195ed;
+    }
+
+  </style>
+</head>
+<body>
+  <div id="header">
+    <button id="octave-down">- oct</button>
+    <div id="midi-connected" class="status"></div>
+    <h1>stepper speaker live</h1>
+    <div id="speaker-connected" class="status"></div>
+    <button id="octave-up">+ oct</button>
+  </div>
+  <div class="keys">
+    <button id="note0" class="white l">C<span id="octave">4</span></button>
+    <button id="note1" class="black">C♯</button>
+    <button id="note2" class="white l r">D</button>
+    <button id="note3" class="black">D♯</button>
+    <button id="note4" class="white r">E</button>
+    <button id="note5" class="white l">F</button>
+    <button id="note6" class="black">F♯</button>
+    <button id="note7" class="white l r">G</button>
+    <button id="note8" class="black">G♯</button>
+    <button id="note9" class="white l r">A</button>
+    <button id="note10" class="black">A♯</button>
+    <button id="note11" class="white r">B</button>
+  </div>
+</body>
+<script type="module">
+
+let octave = 4;
+let currentNote = 0;
+
+const ws = new WebSocket(`ws://${location.host}/ws`);
+ws.onopen = () => {
+  el('speaker-connected').innerText = 'speaker';
+}
+ws.onclose = () => {
+  el('speaker-connected').innerText = '';
+}
+
+const midiNoteFreq = (num) => 440*Math.pow(2, (parseInt(num)-45)/12)
+const freqToPeriod = (freq) => Math.floor(1e6/freq)
+
+const sendNote = (period) => {
+  if (!ws) return;
+  const data = new ArrayBuffer(4);
+  const dv = new DataView(data);
+  dv.setUint32(0, period, true);
+  ws.send(data);
+}
+
+const startNote = (idx) => {
+  sendNote(freqToPeriod(midiNoteFreq(idx)));
+  currentNote = idx;
+}
+const endNote = (idx) => {
+  if (idx === currentNote) sendNote(0);
+}
+
+const uiNoteOn = (idx) => startNote(12*(octave+1) + idx)
+const uiNoteOff = (idx) => endNote(12*(octave+1) + idx)
+
+const el = (id) => document.getElementById(id);
+const updateOctave = () => el('octave').innerText = octave.toString();
+el('octave-up').addEventListener("click", ()=> { octave=Math.min(octave+1,8); updateOctave() }, false);
+el('octave-down').addEventListener("click", ()=>{ octave=Math.max(octave-1,1); updateOctave() }, false);
+for (let i=0; i<12; i++) {
+  el(`note${i}`).addEventListener('touchstart', (e)=>{ e.preventDefault(); uiNoteOn(i) });
+  el(`note${i}`).addEventListener('touchend', (e)=>{ e.preventDefault(); uiNoteOff(i) });
+}
+
+function onMIDIMessage( event ) {
+  console.log("midi", event.data[1])
+  if ((event.data[0]&0xF0) === 0x90) {
+    (event.data[2] > 0 ? startNote : endNote)(event.data[1]);
+  }
+  if ((event.data[0]&0xF0) === 0x80) {
+    endNote(event.data[1]);
+  }
+}
+
+function onMIDISuccess( midiAccess ) {
+  el('midi-connected').innerText = 'midi';
+  midiAccess.inputs.forEach( function(entry) {entry.onmidimessage = onMIDIMessage;});
+}
+
+function onMIDIFailure(msg) {
+  console.log( "Failed to get MIDI access - " + msg );
+}
+navigator.requestMIDIAccess().then( onMIDISuccess, onMIDIFailure );
+
+
+
+</script>
+</html>
