@@ -11,7 +11,6 @@
 // constructor
 WIFI::WIFI(const char *configPath) {
   configFile = configPath;
-  WiFi.setSleep(false);
 }
 
 // public methods
@@ -76,6 +75,7 @@ bool WIFI::readConfig(WIFIConfig *config) {
 bool WIFI::connectToAccessPoint(WIFIConfig *config) {
   Serial.printf("Connecting to access point %s.\n", config->ssid);
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
   WiFi.begin(config->ssid, config->password);
   if (WiFi.waitForConnectResult() != WL_CONNECTED) {
     Serial.println("Connection Failed!...");
@@ -96,6 +96,7 @@ bool WIFI::connectDefault() {
   #ifdef WIFI_CONNECT_STASSID
     Serial.printf("Connecting to access point %s.\n", WIFI_CONNECT_STASSID);
     WiFi.mode(WIFI_STA);
+    WiFi.setSleep(false);
     WiFi.begin(WIFI_CONNECT_STASSID, WIFI_CONNECT_STAPSK);
     if (WiFi.waitForConnectResult() == WL_CONNECTED) {
       Serial.print("Connected at IP: ");

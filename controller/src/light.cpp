@@ -10,6 +10,7 @@ void LIGHT::init() {
 }
 
 void LIGHT::setHSV(uint8_t hue, uint8_t sat, uint8_t bright) {
+  stop();
   leds[0] = CHSV(hue, sat, bright);
   FastLED.show();
 }

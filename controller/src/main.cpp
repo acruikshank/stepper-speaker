@@ -51,7 +51,8 @@ void playNoteHandler(uint32_t period) {
     motor.setDirection(!motor.direction);
     motor.play(period);
   } else {
-    light.blink(light.currentColor);
+    light.setHSV(255, 0, 00);
+    // light.blink(light.currentColor);
     motor.stop();
   }
 }
